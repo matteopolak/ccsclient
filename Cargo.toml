@@ -1,0 +1,27 @@
+[package]
+name = "ccsclient"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+similar = "2.1.0"
+sha2 = "0.9.8"
+hex = "0.4.3"
+regex = "1.5.4"
+machine-uid = "0.2.0"
+reqwest = { version = "0.11.5", features = ["blocking"] }
+winreg = "0.10.1"
+
+[profile.dev]
+opt-level = 0
+overflow-checks = false
+debug = true
+
+[profile.release]
+overflow-checks = true
+opt-level = 3
+debug = false
+lto = "fat"
+codegen-units = 1
