@@ -61,6 +61,7 @@ name = "ccsclient"
 version = "0.1.0"
 dependencies = [
  "hex",
+ "lazy_static",
  "machine-uid",
  "regex",
  "reqwest",
