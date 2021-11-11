@@ -113,7 +113,7 @@ fn check_diff(old: &String, new: &String, path_str: &str) {
 			continue;
 		}
 
-		//#[cfg(target_os = "linux")]
+		#[cfg(target_os = "linux")]
 		if path_str == "/etc/passwd" {
 			if let Some(username) = line.split(':').next() {
 				submit_answer(&format!("{}{}", username, path_str), removed);
